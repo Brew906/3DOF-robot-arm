@@ -1,0 +1,190 @@
+#include <Servo.h>
+
+//service interupt
+//const byte ledPin = 13;
+const byte interruptPin = 2;
+volatile byte state = LOW;
+
+//auto control time varaible
+int DT = 700;
+int ST = 900;
+
+// Define Potentiometer Inputs
+const int controlBase = A0;
+const int controlElbow = A1;
+const int controlWrist = A2;
+const int controlPivot = A3;
+const int controlJaws = A4;
+
+// Define Motor Outputs on 
+const int motorBase = 5;
+const int motorElbow = 6;
+const int motorWrist = 7;
+const int motorPivot = 8;
+const int motorJaws = 9;
+
+// Define Motor position variables
+//For storing the reading from the POT
+float mtrDegreeBase;
+float mtrDegreeElbow;
+int mtrDegreeWrist;
+int mtrDegreePivot;
+int mtrDegreeJaws;
+
+// create servo objects per servo on arm
+Servo Base;
+Servo Elbow;
+Servo Wrist;
+Servo Pivot;
+Servo Jaws;
+
+//varialbles to smooth out analog readings
+const int numReadings = 10;
+
+int readings[numReadings];      // the readings from the analog input
+int readIndex = 0;              // the index of the current reading
+int total = 0;                  // the running total
+int average = 0;                // the average
+
+
+
+void setup() {
+  //pinMode(ledPin, OUTPUT);
+  pinMode(interruptPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interruptPin), blink, FALLING);
+  
+  //Attach the Servo Object to out put pin on board
+ Base.attach(motorBase);
+ Elbow.attach(motorElbow);
+ Wrist.attach(motorWrist);
+ Pivot.attach(motorPivot);
+ Jaws.attach(motorJaws);
+ Serial.begin(9600);
+// initialize all the readings of the array to 0:
+  for (int thisReading = 0; thisReading < numReadings; thisReading++) {
+     readings[thisReading] = 0;
+      }//end of for loop
+}// end of set up
+
+int smooth_ana(int inputPin){
+// subtract the last reading:
+  total = total - readings[readIndex];
+  // read from the sensor:
+  readings[readIndex] = analogRead(inputPin);
+  // add the reading to the total:
+  total = total + readings[readIndex];
+  Serial.println(readIndex);
+  // advance to the next position in the array:
+  readIndex = readIndex + 1;
+
+  // if we're at the end of the array...
+  if (readIndex >= numReadings) {
+    // ...wrap around to the beginning:
+    readIndex = 0;
+  }
+
+  // calculate the average:
+  average = total / numReadings;
+  // send it to the computer as ASCII digits
+  Serial.println(average);
+  return average;
+  delay(1);        // delay in between reads for stability
+  
+}//end of smooth_ana
+
+void blink() {
+  state = !state;
+}//end of blink
+
+void automation(){
+    //starting position for arm to begin routine
+    Elbow.write(90);
+    delay(ST);
+    Wrist.write(90);
+    delay(ST);
+    Base.write(90);
+    delay(ST);
+    Pivot.write(90);
+    delay(ST);
+    Jaws.write(90);
+    delay(ST);
+    //move arm to first position open jaw
+    Base.write(50);
+    delay(DT);
+    Elbow.write(70);
+    delay(DT);
+    Wrist.write(180);
+    delay(DT);
+    Elbow.write(45);
+    delay(DT);
+    Jaws.write(90);
+    delay(DT);
+    Elbow.write(33);
+    delay(DT);
+    //close jaw on item
+    Jaws.write(11);
+    delay(2100);////////////////////////
+    //move arm to final positon and open jaw
+    Elbow.write(85);
+    delay(1200);
+    Wrist.write(120);
+    delay(DT);
+    Pivot.write(15);
+    delay(DT);
+    
+    Base.write(140);
+    delay(DT);
+    Wrist.write(180);
+    delay(DT);
+    Elbow.write(45);
+    delay(DT);
+    Elbow.write(37);
+    delay(DT);
+    Jaws.write(90);
+    delay(DT);
+
+  
+}//end of automation
+
+void manual_Control(){
+   mtrDegreeBase = analogRead(controlBase);           //Read Pot
+   mtrDegreeElbow = smooth_ana(controlElbow);
+   mtrDegreeWrist = analogRead(controlWrist);           //Read Pot
+   mtrDegreePivot = analogRead(controlPivot);           //Read Pot
+   mtrDegreeJaws = analogRead(controlJaws); 
+
+     mtrDegreeBase = map(mtrDegreeBase, 0, 1023, 0, 179); // scale it to servo range 
+     mtrDegreeElbow = map(mtrDegreeElbow, 0, 1023, 0, 179); // scale it to servo range 
+     mtrDegreeWrist = map(mtrDegreeWrist, 0, 1023, 10, 179); // scale it to servo range 
+     mtrDegreePivot = map(mtrDegreePivot, 0, 1023, 2, 179); // scale it to servo range 
+     mtrDegreeJaws = map(mtrDegreeJaws, 0, 1023, 0, 90); // scale it to servo range 
+
+    Base.write(mtrDegreeBase);
+    Elbow.write(mtrDegreeElbow);
+    Wrist.write(mtrDegreeWrist);
+    Pivot.write(mtrDegreePivot);
+    Jaws.write(mtrDegreeJaws);
+    delay(15);
+
+  
+}//ens of manual_Control
+
+void loop() {
+  
+
+switch (state) {
+  case LOW:
+        manual_Control();
+    break;//end of case "LOW"
+  case HIGH:
+        automation();     
+    break;//end of case "HIGH"
+  //default:
+    // if nothing else matches, do the default
+    // default is optional
+    //break;
+}//end of switch case
+
+  
+}//end of void loop
+
